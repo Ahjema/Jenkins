@@ -1,0 +1,22 @@
+node('what-jenkins-node-shold-i-run-on') {
+  stage ('Checkout') {
+    checkout([$class: 'SubversionSCM', additionalCredentials: [], excludedCommitMessages: '', excludedRegions: '', excludedRevprop: '', excludedUsers: '', filterChangelog: false, ignoreDirPropChanges: false, includedRegions: '', locations: [[credentialsId: 'YoUr_SuPeR_SeCrEt_KeY', depthOption: 'infinity', ignoreExternalsOption: true, local: './workspace_reference_folder', remote: 'https://svn-repo/to/pull/from']], workspaceUpdater: [$class: 'UpdateUpdater']])
+    checkout([$class: 'GitSCM', branches: [[name: '*/master']], doGenerateSubmoduleConfigurations: false, extensions: [], submoduleCfg: [], userRemoteConfigs: [[credentialsId: 'YoUr_SuPeR_SeCrEt_KeY', url: 'http://your_git_repo/code.git']]])
+  }
+  def svnrev = sh(script: 'svn info $svn_app |grep Revision: |cut -c11-', returnStdout: true)
+  println svnrev
+  stage ('Build Image') {
+    sh 'cp stg/* .'
+    sh 'sudo docker build --pull -t image_name .'
+  }
+  stage ('Function Test') {
+    sh 'sudo docker run --rm --privileged=true --entrypoint /apps/mount.sh image_name "some/command/or/script.sh"'
+  }
+   stage ('Push Image to Registry') {
+    sh 'sudo docker push image_name'
+    sh "sudo docker tag image_name image_name:${svnrev}"
+    sh "sudo docker push image_name:${svnrev}"
+    sh "sudo docker rmi image_name:${svnrev}"
+    sh 'sudo docker rmi image_name'
+  }
+}
