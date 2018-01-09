@@ -1,0 +1,29 @@
+node('jenkins_node_to_run_on') {
+  stage ('Checkout') {
+    checkout([$class: 'SubversionSCM', additionalCredentials: [], excludedCommitMessages: '', excludedRegions: '', excludedRevprop: '', excludedUsers: '', filterChangelog: false, ignoreDirPropChanges: false, includedRegions: '', locations: [[credentialsId: 'YoUr_SeCrEt_KeY', depthOption: 'infinity', ignoreExternalsOption: true, local: './app_name', remote: 'https://svn/repo/with/code']], workspaceUpdater: [$class: 'UpdateUpdater']])
+    checkout([$class: 'GitSCM', branches: [[name: '*/master']], doGenerateSubmoduleConfigurations: false, extensions: [], submoduleCfg: [], userRemoteConfigs: [[credentialsId: 'YoUr_SeCrEt_KeY', url: 'https://git/repo/to/code.git']]])
+  }
+def svnrev = sh(script: 'svn info app |grep Revision: |cut -c11-', returnStdout: true)
+println svnrev
+  stage('Build Image') {
+      sh 'sudo docker build --pull -t image .'
+  }
+  stage ('Run DAL Tests') {
+    try {
+      parallel (
+        test1: { sh 'sudo docker run --rm image test_command_1' },
+        test2: { sh 'sudo docker run --rm image test_command_2' },
+        test3: { sh 'sudo docker run --rm image test_command_3' },
+        test4: { sh 'sudo docker run --rm image test_command_4' }
+        )
+    } catch (Exception err) {
+        currentBuild.result = 'SUCCESS'
+    }
+  }
+  stage ('Push Image to Registry') {
+    sh 'sudo docker push image'
+    sh "sudo docker tag image image:${svnrev}"
+    sh "sudo docker push image:${svnrev}"
+    sh "sudo docker rmi image:${svnrev}"
+  }
+}
